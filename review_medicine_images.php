@@ -6,6 +6,7 @@
  */
 require_once 'db_connection.php';
 require_once 'Auth.php';
+require_once 'ImageHelper.php';
 
 $auth = new Auth($conn);
 if (!$auth->isLoggedIn()) {
@@ -44,7 +45,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'get_images') {
             if (is_file($folderPath . '/' . $f) && preg_match('/\.(jpg|jpeg|png|webp|gif)$/i', $f)) {
                 $images[] = [
                     'filename' => $f,
-                    'url' => $imageBaseUrl . '/' . $folderName . '/' . $f
+                    'url' => proxyImageUrl($imageBaseUrl . '/' . $folderName . '/' . $f)
                 ];
             }
         }
@@ -275,7 +276,7 @@ $pageItems = array_slice(array_values($filtered), ($page - 1) * $perPage, $perPa
                 <?php if ($med['has_assigned']): ?>
                     <div class="current-image">
                         <strong>Current Assigned Image:</strong><br>
-                        <img src="<?= htmlspecialchars($med['image_url']) ?>" alt="Current" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\'%3E%3Crect width=\'100\' height=\'100\' fill=\'%23ddd\'/%3E%3Ctext x=\'50\' y=\'50\' text-anchor=\'middle\' dy=\'.3em\' fill=\'%23999\'%3ENo Image%3C/text%3E%3C/svg%3E'">
+                        <img src="<?= htmlspecialchars(proxyImageUrl($med['image_url'])) ?>" alt="Current" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\'%3E%3Crect width=\'100\' height=\'100\' fill=\'%23ddd\'/%3E%3Ctext x=\'50\' y=\'50\' text-anchor=\'middle\' dy=\'.3em\' fill=\'%23999\'%3ENo Image%3C/text%3E%3C/svg%3E'">
                         <p><?= htmlspecialchars(basename($med['image_url'])) ?></p>
                     </div>
                 <?php endif; ?>

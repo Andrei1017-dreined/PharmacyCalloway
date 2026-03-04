@@ -56,8 +56,8 @@ if (strpos($resolvedPath, $basePath . DIRECTORY_SEPARATOR) !== 0 && $resolvedPat
 }
 
 $relativePath = str_replace('\\', '/', ltrim(substr($resolvedPath, strlen($basePath)), '\\/'));
-$segments = array_filter(explode('/', $relativePath), fn($segment) => $segment !== '');
-$imageUrl = implode('/', array_map(fn($segment) => rawurlencode(rawurldecode($segment)), $segments));
+// Store the raw (non-URL-encoded) relative path; the image proxy handles encoding at display time
+$imageUrl = $relativePath;
 
 try {
     // Update the product's image_url

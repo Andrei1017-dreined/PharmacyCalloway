@@ -24,7 +24,18 @@ function normalizeProductImageUrl(string $url): string
         }
     }
 
-    return ltrim($url, '/');
+    $url = ltrim($url, '/');
+
+    // Decode any URL-encoded paths so we always store/compare raw filesystem paths.
+    // Repeat decoding to handle double-encoded values (e.g. %2520 → %20 → space).
+    $prev = '';
+    $decoded = $url;
+    while ($decoded !== $prev) {
+        $prev = $decoded;
+        $decoded = rawurldecode($decoded);
+    }
+
+    return $decoded;
 }
 
 function sanitizeMedicineImageFolderName(string $name): string
@@ -88,7 +99,7 @@ function firstImageInMedicineFolder(string $productName): string
                             continue;
                         }
 
-                        $folderCache[$folder] = 'medicine_images/' . rawurlencode($folder) . '/' . rawurlencode($file);
+                        $folderCache[$folder] = 'medicine_images/' . $folder . '/' . $file;
                         break;
                     }
                 }
@@ -100,19 +111,104 @@ function firstImageInMedicineFolder(string $productName): string
     return $folderCache[$folder] ?? '';
 }
 
+function findMedicineImageByFilename(string $currentImageUrl): string
+{
+    static $fileIndex = null;
+
+    $decoded = rawurldecode(trim($currentImageUrl));
+    if ($decoded === '') {
+        return '';
+    }
+
+    $filename = basename(str_replace('\\', '/', $decoded));
+    if ($filename === '' || $filename === '.' || $filename === '..') {
+        return '';
+    }
+
+    if ($fileIndex === null) {
+        $fileIndex = [];
+        $baseDir = __DIR__ . '/medicine_images';
+        if (is_dir($baseDir)) {
+            $folders = scandir($baseDir);
+            if (is_array($folders)) {
+                foreach ($folders as $folder) {
+                    if ($folder === '.' || $folder === '..') {
+                        continue;
+                    }
+
+                    $folderPath = $baseDir . '/' . $folder;
+                    if (!is_dir($folderPath)) {
+                        continue;
+                    }
+
+                    $files = scandir($folderPath);
+                    if (!is_array($files)) {
+                        continue;
+                    }
+
+                    foreach ($files as $file) {
+                        if ($file === '.' || $file === '..') {
+                            continue;
+                        }
+                        if (!preg_match('/\.(jpg|jpeg|png|webp|gif)$/i', $file)) {
+                            continue;
+                        }
+                        if (!is_file($folderPath . '/' . $file)) {
+                            continue;
+                        }
+
+                        $key = strtolower($file);
+                        if (!isset($fileIndex[$key])) {
+                            $fileIndex[$key] = 'medicine_images/' . $folder . '/' . $file;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return $fileIndex[strtolower($filename)] ?? '';
+}
+
+/**
+ * Wrap a local filesystem-relative image path through the serve_image.php proxy.
+ * This prevents Apache 400 errors for folder names that contain special URL
+ * characters like % (e.g. "Ethyl Alcohol 70% 250mL").
+ */
+function proxyImageUrl(string $relativePath): string
+{
+    if ($relativePath === '' || preg_match('#^(https?:)?//#i', $relativePath) || stripos($relativePath, 'data:') === 0) {
+        return $relativePath;
+    }
+    // Already proxied?
+    if (strpos($relativePath, 'serve_image.php') === 0) {
+        return $relativePath;
+    }
+    return 'serve_image.php?f=' . rawurlencode($relativePath);
+}
+
 function resolveProductImageUrl(string $currentImageUrl, string $productName = ''): string
 {
     $normalized = normalizeProductImageUrl($currentImageUrl);
     if (productImageFileExists($normalized)) {
-        return $normalized;
+        return proxyImageUrl($normalized);
+    }
+
+    $byFilename = findMedicineImageByFilename($normalized);
+    if ($byFilename !== '') {
+        return proxyImageUrl($byFilename);
     }
 
     if ($productName !== '') {
         $fallback = firstImageInMedicineFolder($productName);
         if ($fallback !== '') {
-            return $fallback;
+            return proxyImageUrl($fallback);
         }
     }
 
-    return $normalized;
+    if ($normalized === '' || preg_match('#^(https?:)?//#i', $normalized) || stripos($normalized, 'data:') === 0) {
+        return $normalized;
+    }
+
+    return '';
 }
