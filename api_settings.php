@@ -277,12 +277,25 @@ function saveAlertSettings($conn) {
     $low_stock_threshold = $_POST['low_stock_threshold'] ?? '20';
     $expiry_alert_days = $_POST['expiry_alert_days'] ?? '30';
     $enable_email_alerts = $_POST['enable_email_alerts'] ?? '0';
+    $enable_low_stock_alerts = $_POST['enable_low_stock_alerts'] ?? '0';
+    $enable_expiry_alerts = $_POST['enable_expiry_alerts'] ?? '0';
+    $enable_report_emails = $_POST['enable_report_emails'] ?? '0';
+    $report_frequency = $_POST['report_frequency'] ?? 'daily';
     $alert_email = $_POST['alert_email'] ?? '';
+
+    // Validate report frequency
+    if (!in_array($report_frequency, ['daily', 'weekly', 'monthly'], true)) {
+        $report_frequency = 'daily';
+    }
     
     $settings = [
         'low_stock_threshold' => $low_stock_threshold,
         'expiry_alert_days' => $expiry_alert_days,
         'enable_email_alerts' => $enable_email_alerts,
+        'enable_low_stock_alerts' => $enable_low_stock_alerts,
+        'enable_expiry_alerts' => $enable_expiry_alerts,
+        'enable_report_emails' => $enable_report_emails,
+        'report_frequency' => $report_frequency,
         'alert_email' => $alert_email
     ];
     

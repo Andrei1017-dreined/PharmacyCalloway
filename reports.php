@@ -327,6 +327,44 @@ $page_title = 'Reports & Analytics';
             .metric-card .value { font-size: 1.15rem; }
             .quick-range-btn { padding: 0.4rem 0.75rem; font-size: 0.78rem; }
         }
+
+        @media print {
+            @page { margin: 10mm; }
+
+            body {
+                background: #fff !important;
+            }
+
+            header,
+            .date-range-selector,
+            .reports-header .btn,
+            .toast {
+                display: none !important;
+            }
+
+            .reports-container {
+                max-width: none;
+                margin: 0;
+                padding: 0;
+            }
+
+            .reports-header,
+            .metric-card,
+            .report-card {
+                box-shadow: none !important;
+                background: #fff !important;
+                break-inside: avoid;
+            }
+
+            .reports-grid,
+            .metrics-grid {
+                gap: 0.75rem;
+            }
+
+            .chart-wrap {
+                height: 260px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1043,7 +1081,8 @@ $page_title = 'Reports & Analytics';
         function exportReport(type) {
             const startDate = document.getElementById('startDate').value;
             const endDate = document.getElementById('endDate').value;
-            const url = `get_reports_data.php?action=export&type=${type}&start=${startDate}&end=${endDate}`;
+            const action = type === 'all' ? 'export_all' : 'export';
+            const url = `get_reports_data.php?action=${action}&type=${type}&start=${startDate}&end=${endDate}`;
             window.open(url, '_blank');
             showToast('Exporting data to CSV...', 'success');
         }

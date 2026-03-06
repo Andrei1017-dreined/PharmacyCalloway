@@ -798,23 +798,19 @@ while ($row = $settings_result->fetch_assoc()) {
                 <h3><span class="card-icon amber"><i class="fa-solid fa-bell"></i></span> Alert Configuration</h3>
                 <form id="alertsForm" onsubmit="saveAlertsSettings(event)">
                     <div class="form-group">
-                        <label for="low_stock_threshold">Low Stock Threshold</label>
-                        <input type="number" id="low_stock_threshold" name="low_stock_threshold" min="0"
-                               value="<?php echo htmlspecialchars($settings['low_stock_threshold'] ?? '20'); ?>">
-                        <small>Alert when product quantity falls below this number</small>
+                        <label for="alert_email">Owner / Alert Email Address</label>
+                        <input type="email" id="alert_email" name="alert_email" 
+                               value="<?php echo htmlspecialchars($settings['alert_email'] ?? ''); ?>"
+                               placeholder="owner@example.com">
+                        <small>All alert and report emails are sent to this address</small>
                     </div>
-                    
-                    <div class="form-group">
-                        <label for="expiry_alert_days">Expiry Alert (Days)</label>
-                        <input type="number" id="expiry_alert_days" name="expiry_alert_days" min="1"
-                               value="<?php echo htmlspecialchars($settings['expiry_alert_days'] ?? '30'); ?>">
-                        <small>Alert when products are expiring within this many days</small>
-                    </div>
-                    
+
+                    <hr style="border:none; border-top:1px solid var(--divider-color, #e2e8f0); margin:1.5rem 0;">
+
                     <div class="toggle-row">
                         <div class="toggle-info">
-                            <div class="toggle-label">Enable Email Alerts</div>
-                            <small>Send automated email alerts for low stock and expiry</small>
+                            <div class="toggle-label">Enable Email Alerts (Master)</div>
+                            <small>Turn off to stop ALL automated emails (alerts + reports)</small>
                         </div>
                         <label class="toggle-switch">
                             <input type="checkbox" id="enable_email_alerts" name="enable_email_alerts" 
@@ -822,16 +818,78 @@ while ($row = $settings_result->fetch_assoc()) {
                             <span class="slider"></span>
                         </label>
                     </div>
-                    
-                    <div class="form-group">
-                        <label for="alert_email">Alert Email Address</label>
-                        <input type="email" id="alert_email" name="alert_email" 
-                               value="<?php echo htmlspecialchars($settings['alert_email'] ?? ''); ?>">
-                        <small>Email address to receive automated alerts</small>
+
+                    <div id="alertDetailsSection">
+                        <hr style="border:none; border-top:1px solid var(--divider-color, #e2e8f0); margin:1.5rem 0;">
+                        <p style="font-weight:600; margin-bottom:0.75rem; color:var(--text-color);">Individual Alert Types</p>
+
+                        <div class="toggle-row">
+                            <div class="toggle-info">
+                                <div class="toggle-label">Low Stock Alerts</div>
+                                <small>Email when products fall below the reorder level</small>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="enable_low_stock_alerts" name="enable_low_stock_alerts" 
+                                       <?php echo ($settings['enable_low_stock_alerts'] ?? '1') == '1' ? 'checked' : ''; ?>>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="form-group" style="margin-top:0.5rem;">
+                            <label for="low_stock_threshold">Low Stock Threshold</label>
+                            <input type="number" id="low_stock_threshold" name="low_stock_threshold" min="0"
+                                   value="<?php echo htmlspecialchars($settings['low_stock_threshold'] ?? '20'); ?>">
+                            <small>Alert when product quantity falls below this number</small>
+                        </div>
+
+                        <div class="toggle-row" style="margin-top:1rem;">
+                            <div class="toggle-info">
+                                <div class="toggle-label">Expiry Alerts</div>
+                                <small>Email when products are about to expire</small>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="enable_expiry_alerts" name="enable_expiry_alerts" 
+                                       <?php echo ($settings['enable_expiry_alerts'] ?? '1') == '1' ? 'checked' : ''; ?>>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="form-group" style="margin-top:0.5rem;">
+                            <label for="expiry_alert_days">Expiry Alert (Days)</label>
+                            <input type="number" id="expiry_alert_days" name="expiry_alert_days" min="1"
+                                   value="<?php echo htmlspecialchars($settings['expiry_alert_days'] ?? '30'); ?>">
+                            <small>Alert when products are expiring within this many days</small>
+                        </div>
+
+                        <hr style="border:none; border-top:1px solid var(--divider-color, #e2e8f0); margin:1.5rem 0;">
+
+                        <div class="toggle-row">
+                            <div class="toggle-info">
+                                <div class="toggle-label">Store Report Emails</div>
+                                <small>Receive periodic sales & inventory summary reports</small>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="enable_report_emails" name="enable_report_emails" 
+                                       <?php echo ($settings['enable_report_emails'] ?? '1') == '1' ? 'checked' : ''; ?>>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="form-group" style="margin-top:0.5rem;">
+                            <label for="report_frequency">Report Frequency</label>
+                            <select id="report_frequency" name="report_frequency" style="width:100%; padding:0.65rem 1rem; border:1px solid var(--input-border, #cbd5e1); border-radius:10px; background:var(--bg-color, #fff); color:var(--text-color, #333); font-size:0.95rem;">
+                                <option value="daily"   <?php echo ($settings['report_frequency'] ?? 'daily') === 'daily'   ? 'selected' : ''; ?>>Daily (every day)</option>
+                                <option value="weekly"  <?php echo ($settings['report_frequency'] ?? '') === 'weekly'  ? 'selected' : ''; ?>>Weekly (every Monday)</option>
+                                <option value="monthly" <?php echo ($settings['report_frequency'] ?? '') === 'monthly' ? 'selected' : ''; ?>>Monthly (1st of each month)</option>
+                            </select>
+                            <small>How often the store performance report is emailed</small>
+                        </div>
                     </div>
                     
                     <?php if ($auth->hasPermission('settings.edit')): ?>
-                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Alert Settings</button>
+                    <div style="margin-top:1.5rem;">
+                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Alert Settings</button>
+                    </div>
                     <?php endif; ?>
                     
                     <div class="success-box" id="alerts-success">
@@ -1091,6 +1149,17 @@ while ($row = $settings_result->fetch_assoc()) {
             e.preventDefault();
             saveSettings('alertsForm', 'save_alert_settings', 'alerts-success');
         }
+
+        // Show/hide alert details based on master toggle
+        (function() {
+            const master = document.getElementById('enable_email_alerts');
+            const details = document.getElementById('alertDetailsSection');
+            if (master && details) {
+                function toggle() { details.style.display = master.checked ? '' : 'none'; }
+                toggle();
+                master.addEventListener('change', toggle);
+            }
+        })();
         
         function saveBackupConfig(e) {
             e.preventDefault();

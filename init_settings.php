@@ -64,7 +64,11 @@ $defaultSettings = [
     // Alert Settings
     ['low_stock_threshold', '20', 'alerts', 'Low stock alert threshold'],
     ['expiry_alert_days', '30', 'alerts', 'Days before expiry to alert'],
-    ['enable_email_alerts', '0', 'alerts', 'Enable email alerts'],
+    ['enable_email_alerts', '0', 'alerts', 'Master toggle: enable email alerts'],
+    ['enable_low_stock_alerts', '1', 'alerts', 'Send email when stock is low'],
+    ['enable_expiry_alerts', '1', 'alerts', 'Send email when products are expiring'],
+    ['enable_report_emails', '1', 'alerts', 'Send periodic sales report emails'],
+    ['report_frequency', 'daily', 'alerts', 'Report email frequency: daily, weekly, or monthly'],
     ['alert_email', '', 'alerts', 'Email address for alerts'],
     
     // Backup Settings
