@@ -444,6 +444,31 @@ switch($action) {
 
         echo json_encode(['success' => true, 'data' => $employees]);
         break;
+
+    case 'get_role_permissions':
+        if (!$auth->hasPermission('roles.manage')) {
+            echo json_encode(['success' => false, 'message' => 'Permission denied']);
+            exit;
+        }
+        $roleId = isset($_GET['role_id']) ? intval($_GET['role_id']) : 0;
+        if ($roleId <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Invalid role ID']);
+            exit;
+        }
+        $stmt = $conn->prepare(
+            "SELECT p.permission_name
+             FROM role_permissions rp
+             JOIN permissions p ON p.permission_id = rp.permission_id
+             WHERE rp.role_id = ?
+             ORDER BY p.permission_name"
+        );
+        $stmt->bind_param('i', $roleId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $perms = $result->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        echo json_encode(['success' => true, 'data' => $perms]);
+        break;
         
     default:
         echo json_encode([

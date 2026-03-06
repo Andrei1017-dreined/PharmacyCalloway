@@ -127,22 +127,27 @@ if ($catResult) {
     }
 }
 
-// Build map of category_name => first product image
+// Build map of category_name => first product image (optimized: one row per category)
 $catImageMap = [];
-$imgQuery = "SELECT c.category_name, p.image_url, p.name
-             FROM products p
-             JOIN categories c ON p.category_id = c.category_id
-                         WHERE p.is_active = 1
-                             AND p.stock_quantity > 0
-                             AND (p.expiry_date IS NULL OR DATE(p.expiry_date) >= CURDATE())
-                             AND p.image_url IS NOT NULL
-                             AND p.image_url != ''
-             ORDER BY p.name ASC";
+$imgQuery = "SELECT c.category_name,
+                    (SELECT p2.image_url FROM products p2
+                     WHERE p2.category_id = c.category_id
+                       AND p2.is_active = 1 AND p2.stock_quantity > 0
+                       AND (p2.expiry_date IS NULL OR p2.expiry_date >= CURDATE())
+                       AND p2.image_url IS NOT NULL AND p2.image_url != ''
+                     ORDER BY p2.name ASC LIMIT 1) as image_url,
+                    (SELECT p3.name FROM products p3
+                     WHERE p3.category_id = c.category_id
+                       AND p3.is_active = 1 AND p3.stock_quantity > 0
+                       AND (p3.expiry_date IS NULL OR p3.expiry_date >= CURDATE())
+                       AND p3.image_url IS NOT NULL AND p3.image_url != ''
+                     ORDER BY p3.name ASC LIMIT 1) as product_name
+             FROM categories c";
 $imgResult = $conn->query($imgQuery);
 if ($imgResult) {
     while ($imgRow = $imgResult->fetch_assoc()) {
-        if (!isset($catImageMap[$imgRow['category_name']])) {
-            $catImageMap[$imgRow['category_name']] = resolveProductImageUrl((string)($imgRow['image_url'] ?? ''), (string)($imgRow['name'] ?? ''));
+        if (!empty($imgRow['image_url'])) {
+            $catImageMap[$imgRow['category_name']] = resolveProductImageUrl((string)$imgRow['image_url'], (string)($imgRow['product_name'] ?? ''));
         }
     }
 }
@@ -162,7 +167,7 @@ $prodQuery = "
     LEFT JOIN categories c ON p.category_id = c.category_id
         WHERE p.is_active = 1
             AND p.stock_quantity > 0
-            AND (p.expiry_date IS NULL OR DATE(p.expiry_date) >= CURDATE())
+            AND (p.expiry_date IS NULL OR p.expiry_date >= CURDATE())
     ORDER BY p.name ASC
 ";
 $prodResult = $conn->query($prodQuery);
@@ -180,12 +185,13 @@ if ($prodResult) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pharmacy Online Ordering - Calloway Pharmacy</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
     <link rel="stylesheet" href="design-system.css">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="responsive.css">
     <link rel="stylesheet" href="custom-modal.css">
-    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" onerror="console.warn('QRCode CDN failed to load, using fallback');"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" onerror="console.warn('QRCode CDN failed to load, using fallback');"></script>
     <script src="custom-modal.js"></script>
     <script src="theme.js"></script>
     <style>
@@ -3118,7 +3124,7 @@ if ($prodResult) {
                     </div>
                     <?php endif; ?>
                     <?php if (!empty($catImageMap[$catName])): ?>
-                    <div class="category-card-img"><img src="<?php echo htmlspecialchars($catImageMap[$catName]); ?>" alt="<?php echo htmlspecialchars($catName); ?>"></div>
+                    <div class="category-card-img"><img src="<?php echo htmlspecialchars($catImageMap[$catName]); ?>" alt="<?php echo htmlspecialchars($catName); ?>" loading="lazy"></div>
                     <?php else: ?>
                     <div class="category-card-icon"><i class="fas <?php echo $icon; ?>" style="color:<?php echo $color; ?>"></i></div>
                     <?php endif; ?>
@@ -3199,7 +3205,7 @@ if ($prodResult) {
                          style="cursor:pointer;">
                         <div class="product-image">
                             <?php if (!empty($product['image_url'])): ?>
-                                <img src="<?php echo htmlspecialchars($product['image_url']); ?>" alt="<?php echo htmlspecialchars($product['name']); ?>" style="width:100%;height:100%;object-fit:cover;">
+                                <img src="<?php echo htmlspecialchars($product['image_url']); ?>" alt="<?php echo htmlspecialchars($product['name']); ?>" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">
                             <?php else: ?>
                                 <?php echo $emoji; ?>
                             <?php endif; ?>

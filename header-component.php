@@ -2,16 +2,16 @@
 // Get the current page name
 $current_page = basename($_SERVER['PHP_SELF']);
 $_headerUser = $_SESSION['full_name'] ?? $_SESSION['username'] ?? 'User';
-$_headerIsCustomer = (isset($_SESSION['role_name']) && $_SESSION['role_name'] === 'customer');
+$_headerRoleSlug = strtolower(trim((string)($_SESSION['role_name'] ?? '')));
+$_headerIsCustomer = ($_headerRoleSlug === 'customer');
 $_headerIsGuest = !isset($_SESSION['user_id']);
-$_headerIsCashier = (isset($_SESSION['role_name']) && $_SESSION['role_name'] === 'cashier');
-$_headerIsAdmin = (isset($_SESSION['role_name']) && in_array($_SESSION['role_name'], ['admin', 'super_admin', 'manager']));
+$_headerIsCashier = ($_headerRoleSlug === 'cashier');
+$_headerIsAdmin = in_array($_headerRoleSlug, ['admin', 'super_admin', 'manager'], true);
 $_headerRoleName = $_SESSION['role_name'] ?? 'Guest';
 
 // ── Demo / Survey Mode ──────────────────────────────────────────────────────
 // A "demo viewer" role can browse but cannot change any data.
-$_headerIsDemo = (isset($_SESSION['role_name']) &&
-                  strtolower(trim($_SESSION['role_name'])) === 'demo viewer');
+$_headerIsDemo = ($_headerRoleSlug === 'demo viewer');
 
 if ($_headerIsDemo && $_SERVER['REQUEST_METHOD'] === 'POST') {
     // Kill the request immediately – demo users cannot submit changes
@@ -32,6 +32,12 @@ if ($_headerIsDemo && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 ?>
+
+<!-- Preconnect to CDNs for faster asset loading -->
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 
 <script>
 (function () {
@@ -91,9 +97,6 @@ if ($_headerIsDemo && $_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="sidebar-section-label">Browse</div>
     <a href="onlineordering.php" class="sidebar-link <?php echo $current_page === 'onlineordering.php' ? 'active' : ''; ?>">
       <i class="fas fa-cart-shopping"></i><span>Online Ordering</span>
-    </a>
-    <a href="medicine-locator.php" class="sidebar-link <?php echo ($current_page === 'medicine-locator.php' || $current_page === 'expiry-monitoring.php') ? 'active' : ''; ?>">
-      <i class="fas fa-search-location"></i><span>Medicine Locator &amp; Expiry Monitoring</span>
     </a>
     <div class="sidebar-section-label">Account</div>
     <a href="login.php" class="sidebar-link">

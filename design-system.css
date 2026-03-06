@@ -12,6 +12,53 @@
   padding: 0;
 }
 
+/* ── Professional Smooth Scrolling ─────────────────────────── */
+html {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Smooth-scrolling for all scrollable containers */
+body,
+.sidebar-nav,
+.modal-content,
+.table-container,
+main {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar — minimal, modern, unobtrusive */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.15);
+  border-radius: 999px;
+  transition: background 0.2s;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,0.28);
+}
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.12);
+}
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.24);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,0,0,0.15) transparent;
+}
+[data-theme="dark"] * {
+  scrollbar-color: rgba(255,255,255,0.12) transparent;
+}
+
 /* ── Design Tokens ─────────────────────────────────────────── */
 :root {
   /* Brand Palette */

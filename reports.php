@@ -661,12 +661,17 @@ $page_title = 'Reports & Analytics';
             }
             startInput.valueAsDate = start;
             
-            loadReports();
+            // Debounce: cancel pending reload, wait briefly for rapid clicks
+            clearTimeout(window._reportDebounce);
+            window._reportDebounce = setTimeout(() => loadReports(), 200);
         }
         
-        async function safeFetchJson(url) {
+        // AbortController to cancel stale fetches
+        let _reportAbort = null;
+
+        async function safeFetchJson(url, signal) {
             try {
-                const res = await fetch(url);
+                const res = await fetch(url, { signal });
                 const text = await res.text();
                 try {
                     const data = JSON.parse(text);
@@ -679,15 +684,36 @@ $page_title = 'Reports & Analytics';
                     return { success: false, message: 'Invalid JSON response' };
                 }
             } catch (err) {
+                if (err.name === 'AbortError') return { success: false, _aborted: true };
                 console.error('Fetch failed:', url, err);
                 return { success: false, message: 'Network error' };
             }
         }
 
+        function showLoadingState() {
+            // Pulse metric cards
+            document.querySelectorAll('.metric-card .value').forEach(el => {
+                el.dataset.prev = el.textContent;
+                el.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:0.9em;opacity:0.5"></i>';
+            });
+            // Pulse table bodies
+            document.querySelectorAll('.report-card table tbody').forEach(tbody => {
+                const cols = tbody.closest('table').querySelectorAll('th').length || 3;
+                tbody.innerHTML = '<tr><td colspan="' + cols + '" style="text-align:center;padding:2rem;"><i class="fas fa-spinner fa-spin" style="color:var(--primary-color);opacity:0.6"></i></td></tr>';
+            });
+        }
+
         async function loadReports() {
+            // Abort any in-flight request
+            if (_reportAbort) _reportAbort.abort();
+            _reportAbort = new AbortController();
+            const signal = _reportAbort.signal;
+
+            showLoadingState();
+
             const startDate = document.getElementById('startDate').value;
             const endDate = document.getElementById('endDate').value;
-            const base = `get_reports_data.php?start=${startDate}&end=${endDate}`;
+            const base = `get_reports_data.php?start=${encodeURIComponent(startDate)}&end=${encodeURIComponent(endDate)}`;
 
             try {
                 // Fetch all data in parallel
@@ -709,23 +735,26 @@ $page_title = 'Reports & Analytics';
                     lowStockRes,
                     expiringRes
                 ] = await Promise.all([
-                    safeFetchJson(`${base}&action=metrics`),
-                    safeFetchJson(`${base}&action=sales_trend`),
-                    safeFetchJson(`${base}&action=payment_mix`),
-                    safeFetchJson(`${base}&action=category_sales`),
-                    safeFetchJson(`${base}&action=top_products&limit=10`),
-                    safeFetchJson(`${base}&action=top_products_profit&limit=10`),
-                    safeFetchJson(`${base}&action=inventory_risk`),
-                    safeFetchJson(`${base}&action=dead_stock&limit=10`),
-                    safeFetchJson(`${base}&action=slow_movers&limit=10`),
-                    safeFetchJson(`${base}&action=order_status`),
-                    safeFetchJson(`${base}&action=operational_stats`),
-                    safeFetchJson(`${base}&action=rx_stats&limit=10`),
-                    safeFetchJson(`${base}&action=customer_stats&limit=10`),
-                    safeFetchJson(`${base}&action=loyalty_stats`),
-                    safeFetchJson('inventory_api.php?action=low_stock_alert'),
-                    safeFetchJson('inventory_api.php?action=expiring_products')
+                    safeFetchJson(`${base}&action=metrics`, signal),
+                    safeFetchJson(`${base}&action=sales_trend`, signal),
+                    safeFetchJson(`${base}&action=payment_mix`, signal),
+                    safeFetchJson(`${base}&action=category_sales`, signal),
+                    safeFetchJson(`${base}&action=top_products&limit=10`, signal),
+                    safeFetchJson(`${base}&action=top_products_profit&limit=10`, signal),
+                    safeFetchJson(`${base}&action=inventory_risk`, signal),
+                    safeFetchJson(`${base}&action=dead_stock&limit=10`, signal),
+                    safeFetchJson(`${base}&action=slow_movers&limit=10`, signal),
+                    safeFetchJson(`${base}&action=order_status`, signal),
+                    safeFetchJson(`${base}&action=operational_stats`, signal),
+                    safeFetchJson(`${base}&action=rx_stats&limit=10`, signal),
+                    safeFetchJson(`${base}&action=customer_stats&limit=10`, signal),
+                    safeFetchJson(`${base}&action=loyalty_stats`, signal),
+                    safeFetchJson('inventory_api.php?action=low_stock_alert', signal),
+                    safeFetchJson('inventory_api.php?action=expiring_products', signal)
                 ]);
+
+                // If this request was aborted (superseded), bail out silently
+                if (metricsRes._aborted) return;
 
                 // -- Metrics cards --
                 if (metricsRes.success) {

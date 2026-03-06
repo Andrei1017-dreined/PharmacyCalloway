@@ -299,23 +299,19 @@ switch($action) {
             exit;
         }
 
-                $query = "SELECT *
-                                    FROM (
-                                        SELECT 
-                                                p.product_id,
-                                                p.name as product_name,
-                                                p.stock_quantity,
-                                                DATE(MAX(s.created_at)) as last_sale_date
-                                        FROM products p
-                                        LEFT JOIN sale_items si ON p.product_id = si.product_id
-                                        LEFT JOIN sales s ON si.sale_id = s.sale_id
-                                        WHERE p.is_active = 1
-                                        GROUP BY p.product_id, p.name, p.stock_quantity
-                                    ) ds
-                                    WHERE (ds.last_sale_date IS NULL OR ds.last_sale_date < DATE_SUB(CURDATE(), INTERVAL 90 DAY))
-                                        AND ds.stock_quantity > 0
-                                    ORDER BY ds.last_sale_date IS NULL DESC, ds.last_sale_date ASC
-                                    LIMIT ?";
+                $query = "SELECT p.product_id, p.name as product_name, p.stock_quantity,
+                                 recent.last_sale_date
+                          FROM products p
+                          LEFT JOIN (
+                              SELECT si.product_id, MAX(DATE(s.created_at)) as last_sale_date
+                              FROM sale_items si
+                              JOIN sales s ON si.sale_id = s.sale_id
+                              GROUP BY si.product_id
+                          ) recent ON p.product_id = recent.product_id
+                          WHERE p.is_active = 1 AND p.stock_quantity > 0
+                            AND (recent.last_sale_date IS NULL OR recent.last_sale_date < DATE_SUB(CURDATE(), INTERVAL 90 DAY))
+                          ORDER BY recent.last_sale_date IS NULL DESC, recent.last_sale_date ASC
+                          LIMIT ?";
 
         $stmt = $conn->prepare($query);
         $stmt->bind_param("i", $limit);
@@ -481,35 +477,25 @@ switch($action) {
                         ? "COALESCE(NULLIF(customer_id, 0), $fallbackColumn)"
                         : "COALESCE(NULLIF($fallbackColumn, ''), customer_name)";
 
-                $totalQuery = "SELECT COUNT(*) as total_customers FROM (
-                                                    SELECT $customerRefExpr as customer_ref
-                                                    FROM online_orders
-                                                    WHERE created_at >= ? AND created_at < ?
-                                                    GROUP BY customer_ref
-                                                ) t";
+                // Single query for both total and repeat customer counts
+                $combinedQuery = "SELECT 
+                                    COUNT(*) as total_customers,
+                                    SUM(CASE WHEN cnt >= 2 THEN 1 ELSE 0 END) as repeat_customers
+                                  FROM (
+                                      SELECT $customerRefExpr as customer_ref, COUNT(*) as cnt
+                                      FROM online_orders
+                                      WHERE created_at >= ? AND created_at < ?
+                                      GROUP BY customer_ref
+                                  ) t";
 
-        $stmt = $conn->prepare($totalQuery);
+        $stmt = $conn->prepare($combinedQuery);
         $stmt->bind_param("ss", $startTimestamp, $endDateNextDay);
         $stmt->execute();
-        $totalRow = $stmt->get_result()->fetch_assoc();
+        $combinedRow = $stmt->get_result()->fetch_assoc();
         $stmt->close();
 
-                $repeatQuery = "SELECT COUNT(*) as repeat_customers FROM (
-                                                     SELECT $customerRefExpr as customer_ref, COUNT(*) as cnt
-                                                     FROM online_orders
-                                                     WHERE created_at >= ? AND created_at < ?
-                                                     GROUP BY customer_ref
-                                                     HAVING cnt >= 2
-                                                 ) t";
-
-        $stmt = $conn->prepare($repeatQuery);
-        $stmt->bind_param("ss", $startTimestamp, $endDateNextDay);
-        $stmt->execute();
-        $repeatRow = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        $totalCustomers = intval($totalRow['total_customers'] ?? 0);
-        $repeatCustomers = intval($repeatRow['repeat_customers'] ?? 0);
+        $totalCustomers = intval($combinedRow['total_customers'] ?? 0);
+        $repeatCustomers = intval($combinedRow['repeat_customers'] ?? 0);
         $repeatRate = $totalCustomers > 0 ? ($repeatCustomers / $totalCustomers) * 100 : 0;
 
         $topQuery = "SELECT 
