@@ -69,6 +69,16 @@ try {
         }
     }
 
+    // Get low stock threshold from settings (consistent with inventory_api.php)
+    $lowStockThreshold = 20;
+    $ls_stmt = $conn->prepare("SELECT setting_value FROM settings WHERE setting_key = 'low_stock_threshold'");
+    if ($ls_stmt) {
+        $ls_stmt->execute();
+        if ($ls_res = $ls_stmt->get_result()->fetch_assoc()) {
+            $lowStockThreshold = (int) $ls_res['setting_value'];
+        }
+    }
+
     // Combined statistics
     $totalMedicines = $result->num_rows;
     $uniqueCategories = count($categories);
@@ -81,11 +91,11 @@ try {
 
     $statsResult = $conn->query("SELECT
       COUNT(CASE WHEN stock_quantity = 0 THEN 1 END) as out_of_stock,
-      COUNT(CASE WHEN stock_quantity > 0 AND stock_quantity < 10 THEN 1 END) as low_stock,
+      COUNT(CASE WHEN stock_quantity > 0 AND stock_quantity <= {$lowStockThreshold} THEN 1 END) as low_stock,
       COUNT(CASE WHEN expiry_date IS NOT NULL AND expiry_date < CURDATE() THEN 1 END) as expired,
       COUNT(CASE WHEN expiry_date IS NOT NULL AND expiry_date >= CURDATE() AND expiry_date <= DATE_ADD(CURDATE(), INTERVAL {$expiryThreshold} DAY) THEN 1 END) as expiring_soon,
       COUNT(CASE WHEN expiry_date IS NOT NULL AND expiry_date > DATE_ADD(CURDATE(), INTERVAL {$expiryThreshold} DAY) THEN 1 END) as valid_expiry
-      FROM products WHERE is_active = 1 OR is_active IS NULL");
+      FROM products WHERE is_active = 1");
     if ($statsResult && $statsResult->num_rows > 0) {
         $statsRow = $statsResult->fetch_assoc();
         $lowStockCount    = $statsRow['low_stock'];

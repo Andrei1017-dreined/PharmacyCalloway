@@ -6,6 +6,7 @@
 
 require_once 'db_connection.php';
 require_once 'Auth.php';
+require_once 'ActivityLogger.php';
 
 header('Content-Type: application/json');
 
@@ -149,7 +150,6 @@ switch($action) {
         $fullName = trim($input['full_name'] ?? '');
         $roleId = intval($input['role_id'] ?? 0);
         $isActive = intval($input['is_active'] ?? 1);
-        $employeeId = !empty($input['employee_id']) ? intval($input['employee_id']) : null;
         
         // Validation
         if (empty($username) || empty($password)) {
@@ -165,36 +165,6 @@ switch($action) {
         if ($roleId <= 0) {
             echo json_encode(['success' => false, 'message' => 'Please select a valid role']);
             exit;
-        }
-
-        if (employeesExist($conn)) {
-            if ($employeeId <= 0) {
-                echo json_encode(['success' => false, 'message' => 'Employee is required before creating a user']);
-                exit;
-            }
-
-            $stmt = $conn->prepare("SELECT id, name FROM employees WHERE id = ?");
-            $stmt->bind_param("i", $employeeId);
-            $stmt->execute();
-            $emp = $stmt->get_result()->fetch_assoc();
-            if (!$emp) {
-                echo json_encode(['success' => false, 'message' => 'Selected employee not found']);
-                exit;
-            }
-
-            $stmt = $conn->prepare("SELECT user_id FROM users WHERE employee_id = ?");
-            $stmt->bind_param("i", $employeeId);
-            $stmt->execute();
-            if ($stmt->get_result()->num_rows > 0) {
-                echo json_encode(['success' => false, 'message' => 'This employee already has a user account']);
-                exit;
-            }
-
-            if (empty($fullName)) {
-                $fullName = $emp['name'];
-            }
-        } else {
-            $employeeId = null;
         }
         
         // Check if username exists
@@ -227,15 +197,9 @@ switch($action) {
         // Hash password
         $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
         
-        if ($employeeId !== null) {
-            $stmt = $conn->prepare("INSERT INTO users (username, email, password_hash, full_name, role_id, is_active, employee_id) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("ssssiii", $username, $email, $hashedPassword, $fullName, $roleId, $isActive, $employeeId);
-        } else {
-            $stmt = $conn->prepare("INSERT INTO users (username, email, password_hash, full_name, role_id, is_active, employee_id) 
-                        VALUES (?, ?, ?, ?, ?, ?, NULL)");
-            $stmt->bind_param("ssssii", $username, $email, $hashedPassword, $fullName, $roleId, $isActive);
-        }
+        $stmt = $conn->prepare("INSERT INTO users (username, email, password_hash, full_name, role_id, is_active) 
+                    VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("ssssii", $username, $email, $hashedPassword, $fullName, $roleId, $isActive);
         
         if ($stmt->execute()) {
             $auth->logActivity($auth->getCurrentUser()['user_id'], 'CREATE', 'users', "Created user: $username");
@@ -265,7 +229,6 @@ switch($action) {
         $fullName = trim($input['full_name'] ?? '');
         $roleId = intval($input['role_id'] ?? 0);
         $isActive = intval($input['is_active'] ?? 1);
-        $employeeId = !empty($input['employee_id']) ? intval($input['employee_id']) : null;
         
         if (empty($username)) {
             echo json_encode(['success' => false, 'message' => 'Username is required']);
@@ -280,36 +243,6 @@ switch($action) {
         if ($roleId <= 0) {
             echo json_encode(['success' => false, 'message' => 'Please select a valid role']);
             exit;
-        }
-
-        if (employeesExist($conn)) {
-            if ($employeeId <= 0) {
-                echo json_encode(['success' => false, 'message' => 'Employee is required for this user']);
-                exit;
-            }
-
-            $stmt = $conn->prepare("SELECT id, name FROM employees WHERE id = ?");
-            $stmt->bind_param("i", $employeeId);
-            $stmt->execute();
-            $emp = $stmt->get_result()->fetch_assoc();
-            if (!$emp) {
-                echo json_encode(['success' => false, 'message' => 'Selected employee not found']);
-                exit;
-            }
-
-            $stmt = $conn->prepare("SELECT user_id FROM users WHERE employee_id = ? AND user_id != ?");
-            $stmt->bind_param("ii", $employeeId, $userId);
-            $stmt->execute();
-            if ($stmt->get_result()->num_rows > 0) {
-                echo json_encode(['success' => false, 'message' => 'This employee already has another user account']);
-                exit;
-            }
-
-            if (empty($fullName)) {
-                $fullName = $emp['name'];
-            }
-        } else {
-            $employeeId = null;
         }
         
         // Check if username exists for other users
@@ -333,30 +266,16 @@ switch($action) {
         if (!empty($password)) {
             // Update with new password
             $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
-            if ($employeeId !== null) {
-                $stmt = $conn->prepare("UPDATE users 
-                                       SET username = ?, email = ?, password_hash = ?, full_name = ?, role_id = ?, is_active = ?, employee_id = ?
-                                       WHERE user_id = ?");
-                $stmt->bind_param("ssssiiii", $username, $email, $hashedPassword, $fullName, $roleId, $isActive, $employeeId, $userId);
-            } else {
-                $stmt = $conn->prepare("UPDATE users 
-                                       SET username = ?, email = ?, password_hash = ?, full_name = ?, role_id = ?, is_active = ?, employee_id = NULL
-                                       WHERE user_id = ?");
-                $stmt->bind_param("ssssiii", $username, $email, $hashedPassword, $fullName, $roleId, $isActive, $userId);
-            }
+            $stmt = $conn->prepare("UPDATE users 
+                                   SET username = ?, email = ?, password_hash = ?, full_name = ?, role_id = ?, is_active = ?
+                                   WHERE user_id = ?");
+            $stmt->bind_param("ssssiii", $username, $email, $hashedPassword, $fullName, $roleId, $isActive, $userId);
         } else {
             // Update without password change
-            if ($employeeId !== null) {
-                $stmt = $conn->prepare("UPDATE users 
-                                       SET username = ?, email = ?, full_name = ?, role_id = ?, is_active = ?, employee_id = ?
-                                       WHERE user_id = ?");
-                $stmt->bind_param("sssiiii", $username, $email, $fullName, $roleId, $isActive, $employeeId, $userId);
-            } else {
-                $stmt = $conn->prepare("UPDATE users 
-                                       SET username = ?, email = ?, full_name = ?, role_id = ?, is_active = ?, employee_id = NULL
-                                       WHERE user_id = ?");
-                $stmt->bind_param("sssiii", $username, $email, $fullName, $roleId, $isActive, $userId);
-            }
+            $stmt = $conn->prepare("UPDATE users 
+                                   SET username = ?, email = ?, full_name = ?, role_id = ?, is_active = ?
+                                   WHERE user_id = ?");
+            $stmt->bind_param("sssiii", $username, $email, $fullName, $roleId, $isActive, $userId);
         }
         
         if ($stmt->execute()) {
@@ -468,6 +387,50 @@ switch($action) {
         $perms = $result->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
         echo json_encode(['success' => true, 'data' => $perms]);
+        break;
+
+    case 'get_active_users':
+        if (!$auth->hasPermission('users.view')) {
+            echo json_encode(['success' => false, 'message' => 'Permission denied']);
+            exit;
+        }
+        $result = $conn->query("SELECT user_id, username, full_name FROM users WHERE is_active = 1 ORDER BY full_name");
+        $users = [];
+        if ($result) {
+            while ($row = $result->fetch_assoc()) $users[] = $row;
+        }
+        echo json_encode(['success' => true, 'data' => $users]);
+        break;
+
+    case 'get_login_sessions':
+        if (!$auth->hasPermission('users.view')) {
+            echo json_encode(['success' => false, 'message' => 'Permission denied']);
+            exit;
+        }
+        $logger = new ActivityLogger($conn);
+        $filters = [];
+        if (!empty($_GET['user_id'])) $filters['user_id'] = (int)$_GET['user_id'];
+        if (!empty($_GET['date_from'])) $filters['date_from'] = $_GET['date_from'];
+        if (!empty($_GET['date_to'])) $filters['date_to'] = $_GET['date_to'];
+        if (!empty($_GET['status'])) $filters['status'] = $_GET['status'];
+        $filters['limit'] = 100;
+        echo json_encode(['success' => true, 'data' => $logger->getLoginSessions($filters)]);
+        break;
+
+    case 'get_change_logs':
+        if (!$auth->hasPermission('users.view')) {
+            echo json_encode(['success' => false, 'message' => 'Permission denied']);
+            exit;
+        }
+        $logger = new ActivityLogger($conn);
+        $filters = [];
+        if (!empty($_GET['user_id'])) $filters['user_id'] = (int)$_GET['user_id'];
+        if (!empty($_GET['module'])) $filters['module'] = $_GET['module'];
+        if (!empty($_GET['action_type'])) $filters['action_type'] = $_GET['action_type'];
+        if (!empty($_GET['date_from'])) $filters['date_from'] = $_GET['date_from'];
+        if (!empty($_GET['date_to'])) $filters['date_to'] = $_GET['date_to'];
+        $filters['limit'] = 100;
+        echo json_encode(['success' => true, 'data' => $logger->getChangeLogs($filters)]);
         break;
         
     default:

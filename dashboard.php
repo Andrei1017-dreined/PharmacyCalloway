@@ -50,17 +50,28 @@ function getDashboardStats($conn, $today, $thisMonth) {
         }
         
         $expiryDate = date('Y-m-d', strtotime("+$expiryThreshold days"));
+
+        // Get low stock threshold from settings (consistent with inventory_api.php)
+        $lowStockThreshold = 20;
+        $ls_stmt = $conn->prepare("SELECT setting_value FROM settings WHERE setting_key = 'low_stock_threshold' LIMIT 1");
+        if ($ls_stmt) {
+            $ls_stmt->execute();
+            if ($ls_res = $ls_stmt->get_result()->fetch_assoc()) {
+                $lowStockThreshold = (int) $ls_res['setting_value'];
+            }
+            $ls_stmt->close();
+        }
         
         // Single optimized query for product stats
         $productQuery = "SELECT 
             COUNT(*) as total_products,
-            SUM(CASE WHEN stock_quantity <= 20 THEN 1 ELSE 0 END) as low_stock,
+            SUM(CASE WHEN stock_quantity <= ? THEN 1 ELSE 0 END) as low_stock,
             SUM(CASE WHEN expiry_date BETWEEN ? AND ? THEN 1 ELSE 0 END) as expiring_soon
             FROM products 
             WHERE is_active = 1";
         
         $stmt = $conn->prepare($productQuery);
-        $stmt->bind_param('ss', $today, $expiryDate);
+        $stmt->bind_param('iss', $lowStockThreshold, $today, $expiryDate);
         $stmt->execute();
         $result = $stmt->get_result()->fetch_assoc();
         $stmt->close();

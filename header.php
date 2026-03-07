@@ -55,10 +55,6 @@ if (!$dev_bypass && !isset($_SESSION['user_id'])) {
                 <i class="fas fa-search-location"></i>
                 <span>Medicine &amp; Expiry</span>
             </a>
-            <a href="employee-management.php" class="nav-item <?php echo str_contains($_SERVER['PHP_SELF'], 'employee-management.php') ? 'active' : ''; ?>">
-                <i class="fas fa-users"></i>
-                <span>Employee Management</span>
-            </a>
             <a href="logout.php" class="nav-item">
                 <i class="fas fa-sign-out-alt"></i>
                 <span>Logout</span>

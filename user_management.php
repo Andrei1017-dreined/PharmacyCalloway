@@ -6,6 +6,7 @@
 
 require_once 'db_connection.php';
 require_once 'Auth.php';
+require_once 'ActivityLogger.php';
 
 $auth = new Auth($conn);
 $auth->requireAuth('login.php');
@@ -16,6 +17,8 @@ if (!$auth->hasPermission('users.view')) {
 
 $currentUser = $auth->getCurrentUser();
 $page_title = 'User Management';
+$logger = new ActivityLogger($conn);
+$activityStats = $logger->getStats();
 ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
@@ -529,6 +532,45 @@ $page_title = 'User Management';
             .um-stats { grid-template-columns: 1fr; }
             .um-stat { padding: 1rem; }
         }
+
+        /* ── Login Sessions & Change History Log Styles ──────── */
+        .um-log-filters { display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:1.25rem; align-items:flex-end; }
+        .um-filter-group { display:flex; flex-direction:column; gap:.25rem; }
+        .um-filter-group label { font-size:.68rem; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--text-light,#94a3b8); }
+        .um-filter-group input,.um-filter-group select { padding:.45rem .7rem; border:1.5px solid var(--input-border,#e2e8f0); border-radius:var(--radius-md,10px); background:var(--card-bg,#fff); color:var(--text-color); font-size:.88rem; transition:border-color .2s; }
+        .um-filter-group input:focus,.um-filter-group select:focus { outline:none; border-color:var(--primary-color,#2563eb); }
+        .um-filter-btn { padding:.45rem .85rem; border:none; border-radius:var(--radius-md,10px); background:var(--primary-color,#2563eb); color:white; font-weight:600; font-size:.88rem; cursor:pointer; transition:all .15s; display:inline-flex; align-items:center; gap:.35rem; }
+        .um-filter-btn:hover { filter:brightness(.92); transform:translateY(-1px); }
+
+        .um-log-entry { padding:.85rem 1rem; border-bottom:1px solid var(--input-border,#e2e8f0); display:flex; gap:.75rem; align-items:flex-start; transition:background .12s; }
+        .um-log-entry:hover { background:var(--hover-bg,rgba(37,99,235,0.03)); }
+        .um-log-entry:last-child { border-bottom:none; }
+        .um-log-icon { width:36px; height:36px; border-radius:var(--radius-md,10px); display:grid; place-items:center; font-size:.9rem; flex-shrink:0; }
+        .um-log-icon.login { background:rgba(16,185,129,.1); color:#10b981; }
+        .um-log-icon.logout { background:rgba(107,114,128,.1); color:#6b7280; }
+        .um-log-icon.create { background:rgba(37,99,235,.1); color:#2563eb; }
+        .um-log-icon.update,.um-log-icon.toggle { background:rgba(245,158,11,.1); color:#f59e0b; }
+        .um-log-icon.delete { background:rgba(239,68,68,.1); color:#ef4444; }
+        .um-log-body { flex:1; min-width:0; }
+        .um-log-title { font-weight:600; font-size:.88rem; color:var(--text-color); margin-bottom:.15rem; }
+        .um-log-meta { font-size:.78rem; color:var(--text-light,#94a3b8); display:flex; gap:.75rem; flex-wrap:wrap; align-items:center; }
+        .um-log-changes { margin-top:.4rem; padding:.4rem .7rem; background:var(--bg-color,#f8fafc); border:1px solid var(--input-border,#e2e8f0); border-radius:var(--radius-sm,6px); font-size:.78rem; font-family:monospace; line-height:1.6; }
+        .um-log-time { font-size:.78rem; color:var(--text-light,#94a3b8); white-space:nowrap; text-align:right; min-width:110px; flex-shrink:0; }
+        .um-session-badge { display:inline-flex; align-items:center; gap:.25rem; padding:.15rem .45rem; border-radius:var(--radius-full,999px); font-size:.68rem; font-weight:700; text-transform:uppercase; }
+        .um-session-badge.active { background:rgba(16,185,129,.1); color:#10b981; }
+        .um-session-badge.logged_out,.um-session-badge.logged-out { background:rgba(107,114,128,.1); color:#6b7280; }
+        .um-session-badge.expired { background:rgba(245,158,11,.1); color:#d97706; }
+        .um-session-badge.forced { background:rgba(239,68,68,.1); color:#ef4444; }
+        .um-duration-badge { display:inline-flex; align-items:center; gap:.2rem; padding:.15rem .45rem; background:rgba(37,99,235,.08); border-radius:var(--radius-full,999px); font-size:.75rem; font-weight:600; color:var(--primary-color,#2563eb); }
+        .um-log-empty { text-align:center; padding:3rem 2rem; color:var(--text-light,#94a3b8); }
+        .um-log-empty i { font-size:2.5rem; margin-bottom:.75rem; opacity:.4; display:block; }
+        .um-log-empty p { font-size:.88rem; margin:.2rem 0; }
+        .um-log-empty p:first-of-type { font-weight:600; color:var(--text-color); font-size:1rem; }
+
+        @media(max-width:768px) {
+            .um-log-filters { flex-direction:column; }
+            .um-log-time { display:none; }
+        }
     </style>
 </head>
 <body>
@@ -567,6 +609,14 @@ $page_title = 'User Management';
                 <div class="um-stat-icon amber"><i class="fa-solid fa-key"></i></div>
                 <div><div class="um-stat-value" id="totalPermissions">—</div><div class="um-stat-label">Permissions</div></div>
             </div>
+            <div class="um-stat">
+                <div class="um-stat-icon" style="background:rgba(236,72,153,.1);color:#ec4899;"><i class="fa-solid fa-right-to-bracket"></i></div>
+                <div><div class="um-stat-value"><?php echo $activityStats['today_logins']; ?></div><div class="um-stat-label">Today's Logins</div></div>
+            </div>
+            <div class="um-stat">
+                <div class="um-stat-icon" style="background:rgba(6,182,212,.1);color:#06b6d4;"><i class="fa-solid fa-pen-to-square"></i></div>
+                <div><div class="um-stat-value"><?php echo $activityStats['today_changes']; ?></div><div class="um-stat-label">Today's Changes</div></div>
+            </div>
         </div>
 
         <!-- Toolbar -->
@@ -577,6 +627,12 @@ $page_title = 'User Management';
                 </button>
                 <button class="um-tab" data-tab="roles" onclick="switchTab('roles', this)">
                     <i class="fa-solid fa-shield"></i> Roles <span class="badge" id="rolesBadge">0</span>
+                </button>
+                <button class="um-tab" data-tab="login-logs" onclick="switchTab('login-logs', this)">
+                    <i class="fa-solid fa-right-to-bracket"></i> Login Sessions
+                </button>
+                <button class="um-tab" data-tab="change-logs" onclick="switchTab('change-logs', this)">
+                    <i class="fa-solid fa-clock-rotate-left"></i> Change History
                 </button>
             </div>
             <div class="um-search" id="searchWrapper">
@@ -592,7 +648,6 @@ $page_title = 'User Management';
                     <thead>
                         <tr>
                             <th>User</th>
-                            <th>Employee</th>
                             <th>Role</th>
                             <th>Status</th>
                             <th>Last Login</th>
@@ -600,7 +655,7 @@ $page_title = 'User Management';
                         </tr>
                     </thead>
                     <tbody id="usersTableBody">
-                        <tr><td colspan="6"><div class="um-loading"><i class="fa-solid fa-spinner fa-spin"></i>Loading users&hellip;</div></td></tr>
+                        <tr><td colspan="5"><div class="um-loading"><i class="fa-solid fa-spinner fa-spin"></i>Loading users&hellip;</div></td></tr>
                     </tbody>
                 </table>
             </div>
@@ -610,6 +665,39 @@ $page_title = 'User Management';
         <div class="um-panel" id="rolesTab">
             <div class="um-roles-grid" id="rolesGrid">
                 <div class="um-loading"><i class="fa-solid fa-spinner fa-spin"></i>Loading roles&hellip;</div>
+            </div>
+        </div>
+
+        <!-- Login Sessions Tab -->
+        <div class="um-panel" id="login-logsTab">
+            <div class="um-card" style="padding:1.25rem">
+                <div class="um-log-filters">
+                    <div class="um-filter-group"><label>User</label><select id="login-filter-user"><option value="">All Users</option></select></div>
+                    <div class="um-filter-group"><label>From</label><input type="date" id="login-filter-from"></div>
+                    <div class="um-filter-group"><label>To</label><input type="date" id="login-filter-to"></div>
+                    <div class="um-filter-group"><label>Status</label><select id="login-filter-status"><option value="">All</option><option value="active">Active</option><option value="logged_out">Logged Out</option><option value="expired">Expired</option></select></div>
+                    <button class="um-filter-btn" onclick="loadLoginSessions()"><i class="fas fa-magnifying-glass"></i> Filter</button>
+                </div>
+                <div id="login-sessions-list">
+                    <div class="um-log-empty"><i class="fas fa-right-to-bracket"></i><p>No sessions loaded</p><p>Click Filter to load login/logout sessions</p></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Change History Tab -->
+        <div class="um-panel" id="change-logsTab">
+            <div class="um-card" style="padding:1.25rem">
+                <div class="um-log-filters">
+                    <div class="um-filter-group"><label>User</label><select id="change-filter-user"><option value="">All Users</option></select></div>
+                    <div class="um-filter-group"><label>Module</label><select id="change-filter-module"><option value="">All Modules</option><option value="Employee Management">Employee Mgmt</option><option value="Inventory">Inventory</option><option value="POS">POS</option><option value="Authentication">Auth</option><option value="User Management">User Mgmt</option></select></div>
+                    <div class="um-filter-group"><label>Action</label><select id="change-filter-action"><option value="">All Actions</option><option value="create">Create</option><option value="update">Update</option><option value="delete">Delete</option><option value="toggle">Toggle</option></select></div>
+                    <div class="um-filter-group"><label>From</label><input type="date" id="change-filter-from"></div>
+                    <div class="um-filter-group"><label>To</label><input type="date" id="change-filter-to"></div>
+                    <button class="um-filter-btn" onclick="loadChangeLogs()"><i class="fas fa-magnifying-glass"></i> Filter</button>
+                </div>
+                <div id="change-logs-list">
+                    <div class="um-log-empty"><i class="fas fa-clock-rotate-left"></i><p>No changes loaded</p><p>Click Filter to view change history</p></div>
+                </div>
             </div>
         </div>
     </div>
@@ -651,25 +739,18 @@ $page_title = 'User Management';
 
                 <div class="um-form-row">
                     <div class="um-form-group">
-                        <label for="employeeId">Employee <span class="req">*</span></label>
-                        <select id="employeeId" required>
-                            <option value="">Select Employee…</option>
-                        </select>
-                    </div>
-                    <div class="um-form-group">
                         <label for="userRole">Role <span class="req">*</span></label>
                         <select id="userRole" required>
                             <option value="">Select Role…</option>
                         </select>
                     </div>
-                </div>
-
-                <div class="um-form-group">
-                    <label for="userStatus">Status <span class="req">*</span></label>
-                    <select id="userStatus" required>
-                        <option value="1">Active</option>
-                        <option value="0">Inactive</option>
-                    </select>
+                    <div class="um-form-group">
+                        <label for="userStatus">Status <span class="req">*</span></label>
+                        <select id="userStatus" required>
+                            <option value="1">Active</option>
+                            <option value="0">Inactive</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div class="um-form-actions">
@@ -731,7 +812,6 @@ $page_title = 'User Management';
             loadUsers();
             loadRoles();
             loadRolesForSelect();
-            loadEmployeesForSelect();
         });
 
         // ── Tab Switch ───────────────────────────────────────────
@@ -744,7 +824,9 @@ $page_title = 'User Management';
             // Toggle search visibility
             document.getElementById('searchWrapper').style.display = tab === 'users' ? '' : 'none';
             if (tab === 'users') loadUsers();
-            else loadRoles();
+            else if (tab === 'roles') loadRoles();
+            else if (tab === 'login-logs') loadLoginSessions();
+            else if (tab === 'change-logs') loadChangeLogs();
         }
 
         // ── Stats ────────────────────────────────────────────────
@@ -791,7 +873,7 @@ $page_title = 'User Management';
         function renderUsers(users) {
             const tbody = document.getElementById('usersTableBody');
             if (users.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6"><div class="um-empty"><i class="fa-solid fa-user-slash"></i><h3>No users found</h3><p>Try adjusting your search or add a new user.</p></div></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5"><div class="um-empty"><i class="fa-solid fa-user-slash"></i><h3>No users found</h3><p>Try adjusting your search or add a new user.</p></div></td></tr>';
                 return;
             }
             tbody.innerHTML = users.map(user => {
@@ -803,7 +885,6 @@ $page_title = 'User Management';
                 const displayName = user.full_name || user.username;
                 const avColor = getAvatarColor(displayName);
                 const initials = getInitials(displayName);
-                const empName = user.employee_name ? escapeHtml(user.employee_name) : '<span style="color:var(--text-light,#94a3b8)">Unlinked</span>';
                 const lastLogin = user.last_login ? formatDateTime(user.last_login) : '<span style="color:var(--text-light,#94a3b8)">Never</span>';
 
                 return `<tr>
@@ -816,7 +897,6 @@ $page_title = 'User Management';
                             </div>
                         </div>
                     </td>
-                    <td data-label="Employee">${empName}</td>
                     <td data-label="Role"><span class="um-role ${roleClass}"><i class="fa-solid ${roleIcon}"></i> ${escapeHtml(user.role_name)}</span></td>
                     <td data-label="Status"><span class="um-status ${statusCls}"><span class="um-status-dot"></span>${statusTxt}</span></td>
                     <td data-label="Last Login">${lastLogin}</td>
@@ -842,8 +922,7 @@ $page_title = 'User Management';
                 (u.username||'').toLowerCase().includes(q) ||
                 (u.email||'').toLowerCase().includes(q) ||
                 (u.full_name||'').toLowerCase().includes(q) ||
-                (u.role_name||'').toLowerCase().includes(q) ||
-                (u.employee_name||'').toLowerCase().includes(q)
+                (u.role_name||'').toLowerCase().includes(q)
             );
             renderUsers(filtered);
         }
@@ -926,29 +1005,6 @@ $page_title = 'User Management';
             } catch (error) { console.error('Error loading roles:', error); }
         }
 
-        async function loadEmployeesForSelect() {
-            try {
-                const response = await fetch('user_api.php?action=get_employees');
-                const data = await response.json();
-                if (data.success) {
-                    const select = document.getElementById('employeeId');
-                    select.innerHTML = '<option value="">Select Employee…</option>';
-                    if (data.data.length === 0) {
-                        const opt = document.createElement('option');
-                        opt.value = ''; opt.textContent = 'No employees found – add employees first'; opt.disabled = true;
-                        select.appendChild(opt);
-                        return;
-                    }
-                    data.data.forEach(emp => {
-                        const option = document.createElement('option');
-                        option.value = emp.id;
-                        option.textContent = emp.name;
-                        select.appendChild(option);
-                    });
-                }
-            } catch (error) { console.error('Error loading employees:', error); }
-        }
-
         // ── Modal: Open / Close ──────────────────────────────────
         function openAddUserModal() {
             document.getElementById('userModalTitle').textContent = 'Add User';
@@ -986,7 +1042,6 @@ $page_title = 'User Management';
                     document.getElementById('username').value = user.username;
                     document.getElementById('email').value = user.email || '';
                     document.getElementById('fullName').value = user.full_name || '';
-                    document.getElementById('employeeId').value = user.employee_id || '';
                     document.getElementById('userRole').value = user.role_id;
                     document.getElementById('userStatus').value = user.is_active;
                     document.getElementById('password').required = false;
@@ -1010,7 +1065,6 @@ $page_title = 'User Management';
                 email: document.getElementById('email').value,
                 password: document.getElementById('password').value,
                 full_name: document.getElementById('fullName').value,
-                employee_id: document.getElementById('employeeId').value,
                 role_id: document.getElementById('userRole').value,
                 is_active: document.getElementById('userStatus').value
             };
@@ -1103,6 +1157,132 @@ $page_title = 'User Management';
         function formatDateTime(dateString) {
             const date = new Date(dateString);
             return date.toLocaleString('en-US', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+        }
+
+        // ── Load users for log filter dropdowns ─────────────────
+        async function loadUsersForFilters() {
+            try {
+                const response = await fetch('user_api.php?action=get_active_users');
+                const data = await response.json();
+                if (!data.success) return;
+                ['login-filter-user', 'change-filter-user'].forEach(function(id) {
+                    const sel = document.getElementById(id);
+                    if (!sel) return;
+                    data.data.forEach(function(u) {
+                        const opt = document.createElement('option');
+                        opt.value = u.user_id;
+                        opt.textContent = u.full_name || u.username;
+                        sel.appendChild(opt);
+                    });
+                });
+            } catch(e) { console.error('Error loading users for filters:', e); }
+        }
+        loadUsersForFilters();
+
+        // ── Login Sessions ─────────────────────────────────────
+        function formatLogDate(s) {
+            if (!s) return '—';
+            const d = new Date(s);
+            return d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) +
+                   ' ' + d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+        }
+        function formatDuration(min) {
+            if (!min && min !== 0) return '—';
+            if (min < 60) return min + 'm';
+            return Math.floor(min / 60) + 'h ' + (min % 60) + 'm';
+        }
+
+        async function loadLoginSessions() {
+            const params = new URLSearchParams({ action: 'get_login_sessions' });
+            [['user_id','login-filter-user'],['date_from','login-filter-from'],['date_to','login-filter-to'],['status','login-filter-status']].forEach(function(pair) {
+                const val = document.getElementById(pair[1])?.value;
+                if (val) params.set(pair[0], val);
+            });
+            const container = document.getElementById('login-sessions-list');
+            container.innerHTML = '<div style="text-align:center;padding:2rem;"><i class="fa-solid fa-spinner fa-spin" style="font-size:1.5rem;color:var(--primary-color,#2563eb)"></i></div>';
+            try {
+                const response = await fetch('user_api.php?' + params.toString());
+                const data = await response.json();
+                if (!data.success || !data.data || !data.data.length) {
+                    container.innerHTML = '<div class="um-log-empty"><i class="fas fa-inbox"></i><p>No sessions found</p><p>Try adjusting your filters</p></div>';
+                    return;
+                }
+                container.innerHTML = data.data.map(function(s) {
+                    return '<div class="um-log-entry">' +
+                        '<div class="um-log-icon ' + (s.status === 'active' ? 'login' : 'logout') + '">' +
+                          '<i class="fas ' + (s.status === 'active' ? 'fa-arrow-right-to-bracket' : 'fa-arrow-right-from-bracket') + '"></i>' +
+                        '</div>' +
+                        '<div class="um-log-body">' +
+                          '<div class="um-log-title">' + escapeHtml(s.full_name || s.username || '—') + '</div>' +
+                          '<div class="um-log-meta">' +
+                            '<span><i class="fas fa-right-to-bracket"></i> ' + formatLogDate(s.login_time) + '</span>' +
+                            '<span><i class="fas fa-right-from-bracket"></i> ' + (s.logout_time ? formatLogDate(s.logout_time) : '—') + '</span>' +
+                            '<span class="um-duration-badge"><i class="far fa-clock"></i> ' + formatDuration(s.duration_minutes) + '</span>' +
+                            '<span class="um-session-badge ' + s.status + '">' + (s.status || '').replace('_', ' ') + '</span>' +
+                          '</div>' +
+                          (s.ip_address ? '<div class="um-log-meta" style="margin-top:.2rem"><span><i class="fas fa-globe"></i> ' + escapeHtml(s.ip_address) + '</span></div>' : '') +
+                        '</div>' +
+                        '<div class="um-log-time">' + formatLogDate(s.login_time) + '</div>' +
+                      '</div>';
+                }).join('');
+            } catch(e) {
+                container.innerHTML = '<div class="um-log-empty"><p>Error loading sessions</p></div>';
+            }
+        }
+
+        // ── Change Logs ────────────────────────────────────────
+        async function loadChangeLogs() {
+            const params = new URLSearchParams({ action: 'get_change_logs' });
+            [['user_id','change-filter-user'],['module','change-filter-module'],['action_type','change-filter-action'],['date_from','change-filter-from'],['date_to','change-filter-to']].forEach(function(pair) {
+                const val = document.getElementById(pair[1])?.value;
+                if (val) params.set(pair[0], val);
+            });
+            const container = document.getElementById('change-logs-list');
+            container.innerHTML = '<div style="text-align:center;padding:2rem;"><i class="fa-solid fa-spinner fa-spin" style="font-size:1.5rem;color:var(--primary-color,#2563eb)"></i></div>';
+            const icons = { create:'fa-plus', update:'fa-pen', delete:'fa-trash-can', toggle:'fa-arrows-rotate', import:'fa-file-import', export:'fa-file-export' };
+            try {
+                const response = await fetch('user_api.php?' + params.toString());
+                const data = await response.json();
+                if (!data.success || !data.data || !data.data.length) {
+                    container.innerHTML = '<div class="um-log-empty"><i class="fas fa-inbox"></i><p>No changes found</p><p>Try adjusting your filters</p></div>';
+                    return;
+                }
+                container.innerHTML = data.data.map(function(log) {
+                    const icon = icons[log.action_type] || 'fa-circle-info';
+                    let changesHtml = '';
+                    let oldV = log.old_values, newV = log.new_values;
+                    try { if (typeof oldV === 'string') oldV = JSON.parse(oldV); } catch(e) {}
+                    try { if (typeof newV === 'string') newV = JSON.parse(newV); } catch(e) {}
+                    const lines = [];
+                    if (oldV && typeof oldV === 'object') {
+                        Object.keys(oldV).forEach(function(k) {
+                            const nv = newV && newV[k] !== undefined ? newV[k] : '—';
+                            lines.push('<span style="color:var(--text-light,#94a3b8)">' + escapeHtml(k) + ':</span> <span style="color:#ef4444;text-decoration:line-through">' + escapeHtml(String(oldV[k])) + '</span> → <span style="color:#10b981">' + escapeHtml(String(nv)) + '</span>');
+                        });
+                    } else if (newV && typeof newV === 'object') {
+                        Object.keys(newV).forEach(function(k) {
+                            lines.push('<span style="color:var(--text-light,#94a3b8)">' + escapeHtml(k) + ':</span> <span style="color:#10b981">' + escapeHtml(String(newV[k])) + '</span>');
+                        });
+                    }
+                    if (lines.length) changesHtml = '<div class="um-log-changes">' + lines.join('<br>') + '</div>';
+                    return '<div class="um-log-entry">' +
+                        '<div class="um-log-icon ' + log.action_type + '"><i class="fas ' + icon + '"></i></div>' +
+                        '<div class="um-log-body">' +
+                          '<div class="um-log-title">' + escapeHtml(log.description || '—') + '</div>' +
+                          '<div class="um-log-meta">' +
+                            '<span><i class="fas fa-user"></i> ' + escapeHtml(log.full_name || log.username || 'System') + '</span>' +
+                            '<span><i class="fas fa-cube"></i> ' + escapeHtml(log.module) + '</span>' +
+                            '<span style="text-transform:capitalize"><i class="fas fa-bolt"></i> ' + escapeHtml(log.action_type) + '</span>' +
+                            (log.target_name ? '<span><i class="fas fa-crosshairs"></i> ' + escapeHtml(log.target_name) + '</span>' : '') +
+                          '</div>' +
+                          changesHtml +
+                        '</div>' +
+                        '<div class="um-log-time">' + formatLogDate(log.created_at) + '</div>' +
+                      '</div>';
+                }).join('');
+            } catch(e) {
+                container.innerHTML = '<div class="um-log-empty"><p>Error loading logs</p></div>';
+            }
         }
 
         // ── Keyboard Shortcuts ───────────────────────────────────

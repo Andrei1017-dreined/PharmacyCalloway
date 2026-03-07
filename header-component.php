@@ -167,9 +167,6 @@ if ($_headerIsDemo && $_SERVER['REQUEST_METHOD'] === 'POST') {
     <a href="reports.php" class="sidebar-link <?php echo $current_page === 'reports.php' ? 'active' : ''; ?>">
       <i class="fas fa-chart-bar"></i><span>Reports & Analytics</span>
     </a>
-    <a href="employee-management.php" class="sidebar-link <?php echo $current_page === 'employee-management.php' ? 'active' : ''; ?>">
-      <i class="fas fa-users"></i><span>Employees</span>
-    </a>
     <a href="user_management.php" class="sidebar-link <?php echo $current_page === 'user_management.php' ? 'active' : ''; ?>">
       <i class="fas fa-user-shield"></i><span>Users & Access</span>
     </a>

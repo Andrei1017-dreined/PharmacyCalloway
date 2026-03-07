@@ -278,7 +278,7 @@ Options -Indexes
 # ============================================
 
 # Allow access to main pages
-<FilesMatch "^(index|login|dashboard|pos|inventory_management|supplier_management|purchase_orders|medicine-locator|expiry-monitoring|employee-management|user_management|online_ordering|loyalty_qr|reports|settings_enhanced|logout|login_handler|process_sale|receipt_generator|get_csrf_token|serve_image)\.">
+<FilesMatch "^(index|login|dashboard|pos|inventory_management|supplier_management|purchase_orders|medicine-locator|expiry-monitoring|user_management|online_ordering|loyalty_qr|reports|settings_enhanced|logout|login_handler|process_sale|receipt_generator|get_csrf_token|serve_image)\.">
     Require all granted
 </FilesMatch>
 

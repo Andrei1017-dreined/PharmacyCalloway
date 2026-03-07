@@ -994,7 +994,7 @@ $page_title = 'Inventory Management';
                 const exp = await expiringRes.json();
 
                 if (low.success) document.getElementById('lowStock').textContent = low.count || 0;
-                if (exp.success) document.getElementById('expiringSoon').textContent = exp.count || 0;
+                if (exp.success) document.getElementById('expiringSoon').textContent = exp.expiring_soon_count ?? exp.count ?? 0;
 
             } catch (e) { console.error(e); }
         }

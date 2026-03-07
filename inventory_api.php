@@ -755,8 +755,15 @@ function expiringProducts($conn, $auth)
         $result = $stmt->get_result();
 
         $products = [];
+        $expiredCount = 0;
+        $expiringSoonCount = 0;
         while ($row = $result->fetch_assoc()) {
             $row['image_url'] = resolveProductImageUrl((string)($row['image_url'] ?? ''), (string)($row['name'] ?? ''));
+            if ($row['days_until_expiry'] < 0) {
+                $expiredCount++;
+            } else {
+                $expiringSoonCount++;
+            }
             $products[] = $row;
         }
 
@@ -764,6 +771,8 @@ function expiringProducts($conn, $auth)
             'success' => true,
             'data' => $products,
             'count' => count($products),
+            'expired_count' => $expiredCount,
+            'expiring_soon_count' => $expiringSoonCount,
             'days_threshold' => $days
         ]);
 
