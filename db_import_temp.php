@@ -29,11 +29,15 @@ try {
     $c->set_charset('utf8mb4');
     echo "Connected OK\n\n";
 
-    // Drop existing 3 tables from partial previous run
-    foreach (['online_order_items', 'pos_notifications', 'online_orders'] as $t) {
-        $c->query("DROP TABLE IF EXISTS `{$t}`");
+    // Drop ALL existing tables to start fresh (handles partial imports)
+    $c->query("SET FOREIGN_KEY_CHECKS = 0");
+    $tableResult = $c->query("SHOW TABLES");
+    while ($row = $tableResult->fetch_row()) {
+        $c->query("DROP TABLE IF EXISTS `{$row[0]}`");
+        echo "Dropped: {$row[0]}\n";
     }
-    echo "Dropped partial tables\n";
+    $c->query("SET FOREIGN_KEY_CHECKS = 1");
+    echo "Cleaned existing tables\n";
 
     // Try mysql CLI first (faster and handles complex dumps better)
     $mysqlBin = null;
