@@ -55,11 +55,21 @@ jobs:
             --exclude='*.md' \
             --exclude='scan_report.html'
 
+      - name: Verify critical files in package
+        run: |
+          test -f deploy_package/login.php
+          test -f deploy_package/onlineordering.php
+
+      - name: Create deployment zip
+        run: |
+          cd deploy_package
+          zip -r ../php-app.zip .
+
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: php-app
-          path: deploy_package
+          path: php-app.zip
 
   deploy:
     runs-on: ubuntu-latest
@@ -73,6 +83,9 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: php-app
+
+      - name: Verify downloaded package
+        run: ls -lah
       
       - name: Login to Azure
         uses: azure/login@v2
@@ -87,5 +100,5 @@ jobs:
         with:
           app-name: 'PharmacyCalloway'
           slot-name: 'Production'
-          package: .
+          package: php-app.zip
           
