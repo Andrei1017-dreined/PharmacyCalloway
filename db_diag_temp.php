@@ -35,3 +35,13 @@ try {
 } catch (Exception $e) {
     echo "ERROR: " . $e->getMessage() . "\n";
 }
+
+echo "\n=== File Check ===\n";
+$files = ['onlineordering.php', 'login.php', 'dashboard.php', 'ImageHelper.php', 'db_connection.php'];
+foreach ($files as $f) {
+    $exists = file_exists(__DIR__ . '/' . $f);
+    echo "  {$f}: " . ($exists ? 'EXISTS (' . filesize(__DIR__ . '/' . $f) . ' bytes)' : 'MISSING') . "\n";
+}
+echo "\nPHP version: " . PHP_VERSION . "\n";
+echo "Document root: " . ($_SERVER['DOCUMENT_ROOT'] ?? 'N/A') . "\n";
+echo "Script dir: " . __DIR__ . "\n";
