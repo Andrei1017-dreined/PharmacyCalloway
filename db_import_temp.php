@@ -35,27 +35,54 @@ try {
     }
     echo "Dropped partial tables\n";
 
-    // Read and execute the SQL dump
-    $sql = file_get_contents($sqlFile);
-
-    // Remove DEFINER clauses
-    $sql = preg_replace('/\/\*!\d+ DEFINER=`[^`]*`@`[^`]*`[^*]*\*\//', '', $sql);
-
-    // Execute multi-query
-    echo "Executing import...\n";
-    if ($c->multi_query($sql)) {
-        $qCount = 0;
-        do {
-            if ($result = $c->store_result()) {
-                $result->free();
-            }
-            $qCount++;
-        } while ($c->more_results() && $c->next_result());
-        echo "Executed {$qCount} query batches\n";
+    // Try mysql CLI first (faster and handles complex dumps better)
+    $mysqlBin = null;
+    foreach (['/usr/bin/mysql', '/usr/local/bin/mysql', 'mysql'] as $candidate) {
+        $check = shell_exec("which {$candidate} 2>/dev/null");
+        if ($check) {
+            $mysqlBin = trim($check);
+            break;
+        }
     }
 
-    if ($c->error) {
-        echo "Last error: {$c->error}\n";
+    if ($mysqlBin) {
+        echo "Using mysql CLI: {$mysqlBin}\n";
+        $cmd = sprintf(
+            '%s -h %s -u %s -p%s --ssl --default-character-set=utf8mb4 %s < %s 2>&1',
+            escapeshellarg($mysqlBin),
+            escapeshellarg($host),
+            escapeshellarg($user),
+            escapeshellarg($pass),
+            escapeshellarg('pharmacycalloway-database'),
+            escapeshellarg($sqlFile)
+        );
+        $output = shell_exec($cmd);
+        echo "CLI output: " . ($output ?: '(none)') . "\n";
+    } else {
+        echo "mysql CLI not found, using PHP multi_query approach...\n";
+
+        // Read and clean the SQL dump
+        $sql = file_get_contents($sqlFile);
+        $sql = preg_replace('/\/\*!\d+ DEFINER=`[^`]*`@`[^`]*`[^*]*\*\//', '', $sql);
+
+        // Split on semicolons that appear at end of line (crude but works for mysqldump output)
+        $statements = preg_split('/;\s*\n/', $sql);
+        $executed = 0;
+        $errors = 0;
+        foreach ($statements as $stmt) {
+            $stmt = trim($stmt);
+            if ($stmt === '' || strpos($stmt, '--') === 0) continue;
+            try {
+                $c->query($stmt);
+                $executed++;
+            } catch (Exception $innerE) {
+                $errors++;
+                if ($errors <= 5) {
+                    echo "Error on statement: " . substr($stmt, 0, 100) . "...\nMsg: {$innerE->getMessage()}\n\n";
+                }
+            }
+        }
+        echo "Executed: {$executed}, Errors: {$errors}\n";
     }
 
     // Verify tables
