@@ -46,31 +46,52 @@ $useSsl = $sslEnv !== false
     : (strpos(DB_HOST, '.mysql.database.azure.com') !== false);
 
 $configuredDbName = trim((string) DB_NAME);
-$dbNameLooksInvalid = $configuredDbName === '' || strpos($configuredDbName, '.mysql.database.azure.com') !== false;
+// Detect obviously invalid DB names: empty, contains Azure domain, or looks like a server/host name
+$dbNameLooksInvalid = $configuredDbName === ''
+    || strpos($configuredDbName, '.mysql.database.azure.com') !== false
+    || preg_match('/^[a-z0-9_-]+-server$/i', $configuredDbName);
 
 // Create connection with error reporting
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
+/**
+ * Helper: connect via SSL without selecting a DB, then auto-detect.
+ */
+function _connectSslAutoDetect() {
+    $conn = mysqli_init();
+    if (!$conn) {
+        throw new mysqli_sql_exception('Failed to initialize MySQL connection');
+    }
+    $conn->options(MYSQLI_OPT_SSL_VERIFY_SERVER_CERT, false);
+    $conn->ssl_set(null, null, null, null, null);
+    $conn->real_connect(DB_HOST, DB_USER, DB_PASS, null, 3306, null, MYSQLI_CLIENT_SSL);
+    $resolvedDbName = resolveApplicationDatabase($conn);
+    if (!$resolvedDbName) {
+        throw new mysqli_sql_exception('No non-system database found. Set DB_NAME in App Settings.');
+    }
+    $conn->select_db($resolvedDbName);
+    return $conn;
+}
+
 try {
     if ($useSsl) {
-        $conn = mysqli_init();
-        if (!$conn) {
-            throw new mysqli_sql_exception('Failed to initialize MySQL connection');
-        }
-
-        // Disable cert verification to support Azure's default SSL without local CA files.
-        $conn->options(MYSQLI_OPT_SSL_VERIFY_SERVER_CERT, false);
-        $conn->ssl_set(null, null, null, null, null);
-
         if ($dbNameLooksInvalid) {
-            $conn->real_connect(DB_HOST, DB_USER, DB_PASS, null, 3306, null, MYSQLI_CLIENT_SSL);
-            $resolvedDbName = resolveApplicationDatabase($conn);
-            if (!$resolvedDbName) {
-                throw new mysqli_sql_exception('No non-system database found. Set DB_NAME in App Settings.');
-            }
-            $conn->select_db($resolvedDbName);
+            $conn = _connectSslAutoDetect();
         } else {
-            $conn->real_connect(DB_HOST, DB_USER, DB_PASS, $configuredDbName, 3306, null, MYSQLI_CLIENT_SSL);
+            // Try the configured name; fall back to auto-detect if DB doesn't exist
+            try {
+                $conn = mysqli_init();
+                if (!$conn) {
+                    throw new mysqli_sql_exception('Failed to initialize MySQL connection');
+                }
+                $conn->options(MYSQLI_OPT_SSL_VERIFY_SERVER_CERT, false);
+                $conn->ssl_set(null, null, null, null, null);
+                $conn->real_connect(DB_HOST, DB_USER, DB_PASS, $configuredDbName, 3306, null, MYSQLI_CLIENT_SSL);
+            } catch (mysqli_sql_exception $dbErr) {
+                // 1049 = Unknown database – fall back to auto-detect
+                error_log("DB '{$configuredDbName}' failed ({$dbErr->getMessage()}), attempting auto-detect…");
+                $conn = _connectSslAutoDetect();
+            }
         }
     } else {
         if ($dbNameLooksInvalid) {
@@ -81,7 +102,17 @@ try {
             }
             $conn->select_db($resolvedDbName);
         } else {
-            $conn = new mysqli($host, DB_USER, DB_PASS, $configuredDbName);
+            try {
+                $conn = new mysqli($host, DB_USER, DB_PASS, $configuredDbName);
+            } catch (mysqli_sql_exception $dbErr) {
+                error_log("DB '{$configuredDbName}' failed ({$dbErr->getMessage()}), attempting auto-detect…");
+                $conn = new mysqli($host, DB_USER, DB_PASS, '');
+                $resolvedDbName = resolveApplicationDatabase($conn);
+                if (!$resolvedDbName) {
+                    throw new mysqli_sql_exception('No non-system database found. Set DB_NAME in App Settings.');
+                }
+                $conn->select_db($resolvedDbName);
+            }
         }
     }
     
